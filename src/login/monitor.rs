@@ -57,8 +57,8 @@ impl Monitor {
         }
     }
 
-    pub fn init<F>(&mut self, category: Category, mut callback: F) -> Result<()> 
-    where F: FnMut() + Send + 'static {    
+    pub fn init<F>(&mut self, category: Category, callback: F) -> Result<()> 
+    where F: Fn() + Send + 'static {    
         ffi_try!(libc::pipe2(self.pipe_fds.as_mut_ptr(), libc::O_CLOEXEC))?;
         let read_fd = self.pipe_fds[0];
 

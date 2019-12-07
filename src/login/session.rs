@@ -76,12 +76,33 @@ impl From<&str> for Class {
     }
 }
 
+#[derive(Debug)]
 pub struct Session {
     pub identifier: String,
     pub uid: u32,
 }
 
 impl Session {
+    pub fn from_process_id(pid: i32) -> Result<Self> {
+        let mut session_ptr: *mut c_char = ptr::null_mut();
+        let _ = ffi_try!(login::sd_pid_get_session(pid, &mut session_ptr))?;
+    
+        let mut uid: u32 = 0;
+        let _ = ffi_try!(login::sd_session_get_uid(session_ptr, &mut uid))?;
+        
+        let session: Session;
+        unsafe {
+            session = Session { 
+                identifier: CStr::from_ptr(session_ptr).to_string_lossy().to_string(),
+                uid,
+            };
+
+            libc::free(session_ptr as *mut c_void);
+        };
+
+        Ok(session)
+    }
+
     pub fn get_state(&self) -> Result<State> {
         let mut state_ptr: *mut c_char = ptr::null_mut();
         let _ = ffi_try!(login::sd_session_get_state(self.identifier.as_bytes().as_ptr() as *const i8, &mut state_ptr))?;
@@ -130,7 +151,7 @@ pub fn get_active_session() -> Result<Session> {
     unsafe {
         session = Session {
             identifier: CStr::from_ptr(session_ptr).to_string_lossy().to_string(),
-            uid: uid,
+            uid,
         };
 
         libc::free(session_ptr as *mut c_void);
