@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::convert::TryInto;
 use std::io::Result;
 use std::os::raw::{c_char, c_void};
@@ -28,7 +29,7 @@ impl Category {
 }
 
 pub struct Monitor {
-    handle: Option<thread::JoinHandle<()>>,
+    handle: Cell<Option<thread::JoinHandle<()>>>,
     pipe_fds: [i32; 2],
 }
 
@@ -50,19 +51,21 @@ impl Drop for Monitor {
 }
 
 impl Monitor {
-    pub fn new() -> Self {
-        Monitor {
-            handle: None,
-            pipe_fds: [-1; 2],
-        }
+    pub fn new() -> Result<Self> {
+        let mut pipe_fds = [-1; 2];
+        ffi_try!(libc::pipe2(pipe_fds.as_mut_ptr(), libc::O_CLOEXEC))?;
+
+        Ok(Monitor {
+            handle: Cell::new(None),
+            pipe_fds,
+        })
     }
 
-    pub fn init<F>(&mut self, category: Category, mut callback: F) -> Result<()> 
+    pub fn init<F>(&self, category: Category, mut callback: F) -> Result<()> 
     where F: FnMut() + Send + 'static {    
-        ffi_try!(libc::pipe2(self.pipe_fds.as_mut_ptr(), libc::O_CLOEXEC))?;
         let read_fd = self.pipe_fds[0];
 
-        self.handle = Some(thread::spawn(move || {
+        self.handle.set(Some(thread::spawn(move || {
             let category_cstr: std::ffi::CString;
             let category: *const c_char = match category.as_str() {
                 Some(s) => {
@@ -117,7 +120,7 @@ impl Monitor {
             }
 
             unsafe { login::sd_login_monitor_unref(monitor); }
-        }));
+        })));
 
         Ok(())
     }
