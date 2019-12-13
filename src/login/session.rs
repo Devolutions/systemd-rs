@@ -2,6 +2,7 @@
 
 use std::convert::TryInto;
 use std::ffi::{CStr, CString};
+use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::io::Result;
 use std::os::raw::{c_char, c_void};
 use std::ptr;
@@ -56,7 +57,7 @@ impl From<&str> for Type {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Class {
     User,
     Greeter,
@@ -80,6 +81,18 @@ impl From<&str> for Class {
 pub struct Session {
     pub identifier: String,
     pub uid: u32,
+}
+
+impl Display for Session {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(f, "({}, {})", self.identifier, self.uid)
+    }
+}
+
+impl PartialEq for Session {
+    fn eq(&self, other: &Self) -> bool {
+        self.identifier == other.identifier
+    }
 }
 
 impl Session {
@@ -158,6 +171,10 @@ pub fn get_active_session() -> Result<Session> {
     }
 
     Ok(session)
+}
+
+pub fn get_session(identifier: &str) -> Result<Option<Session>> {
+    Ok(get_sessions()?.into_iter().find(|session| session.identifier == identifier))
 }
 
 pub fn get_sessions() -> Result<Vec<Session>> {
