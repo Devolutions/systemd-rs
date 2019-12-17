@@ -3,8 +3,8 @@ name = "systemd-rs"
 version = "0.1.0"
 edition = "2018"
 license = "MIT/Apache-2.0"
-homepage = "https://github.com/wayk"
-repository = "https://github.com/wayk"
+homepage = "https://github.com/Devolutions/systemd-rs"
+repository = "https://github.com/Devolutions/systemd-rs"
 authors = ["Richard Markiewicz <rmarkiewicz@devolutions.net>"]
 description = "A high level systemd wrapper"
 
