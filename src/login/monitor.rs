@@ -101,7 +101,7 @@ impl Monitor {
             loop {
                 let timeout = get_timeout(monitor).unwrap();
                 let mut signalled = false;
-                let mut events: [epoll::Event; 1024] = unsafe { std::mem::uninitialized() };
+                let mut events: [epoll::Event; 1024] = [epoll::Event { events: 0, data: 0 }; 1024];
 
                 let num_fds = epoll::wait(ep_fd, timeout, &mut events).unwrap();
                 for i in 0..num_fds {
