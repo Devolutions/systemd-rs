@@ -7,7 +7,7 @@ use std::io::Result;
 use std::os::raw::{c_char, c_void};
 use std::ptr;
 
-use log::debug;
+use log::trace;
 
 use libsystemd_sys::login;
 
@@ -28,9 +28,9 @@ impl From<&str> for State {
             "active" => State::Active,
             "closing" => State::Closing,
             state @ _ => {
-                debug!("unknown session state {}", state);
+                trace!("unknown session state {}", state);
                 State::Unknown
-            },
+            }
         }
     }
 }
@@ -99,13 +99,13 @@ impl Session {
     pub fn from_process_id(pid: i32) -> Result<Self> {
         let mut session_ptr: *mut c_char = ptr::null_mut();
         let _ = ffi_try!(login::sd_pid_get_session(pid, &mut session_ptr))?;
-    
+
         let mut uid: u32 = 0;
         let _ = ffi_try!(login::sd_session_get_uid(session_ptr, &mut uid))?;
-        
+
         let session: Session;
         unsafe {
-            session = Session { 
+            session = Session {
                 identifier: CStr::from_ptr(session_ptr).to_string_lossy().to_string(),
                 uid,
             };
@@ -118,35 +118,56 @@ impl Session {
 
     pub fn get_state(&self) -> Result<State> {
         let mut state_ptr: *mut c_char = ptr::null_mut();
-        let _ = ffi_try!(login::sd_session_get_state(self.identifier.as_bytes().as_ptr() as *const i8, &mut state_ptr))?;
-        let state: State; 
+        let _ = ffi_try!(login::sd_session_get_state(
+            self.identifier.as_bytes().as_ptr() as *const i8,
+            &mut state_ptr
+        ))?;
+        let state: State;
         unsafe {
-            state = CStr::from_ptr(state_ptr).to_string_lossy().to_string().as_str().into();
-            libc::free(state_ptr as *mut c_void); 
+            state = CStr::from_ptr(state_ptr)
+                .to_string_lossy()
+                .to_string()
+                .as_str()
+                .into();
+            libc::free(state_ptr as *mut c_void);
         };
 
         Ok(state)
     }
-    
+
     pub fn get_type(&self) -> Result<Type> {
         let mut type_ptr: *mut c_char = ptr::null_mut();
-        let _ = ffi_try!(login::sd_session_get_type(self.identifier.as_bytes().as_ptr() as *const i8, &mut type_ptr))?;
-        let r#type: Type; 
+        let _ = ffi_try!(login::sd_session_get_type(
+            self.identifier.as_bytes().as_ptr() as *const i8,
+            &mut type_ptr
+        ))?;
+        let r#type: Type;
         unsafe {
-            r#type = CStr::from_ptr(type_ptr).to_string_lossy().to_string().as_str().into();
-            libc::free(type_ptr as *mut c_void); 
+            r#type = CStr::from_ptr(type_ptr)
+                .to_string_lossy()
+                .to_string()
+                .as_str()
+                .into();
+            libc::free(type_ptr as *mut c_void);
         };
 
         Ok(r#type)
     }
-    
+
     pub fn get_class(&self) -> Result<Class> {
         let mut class_ptr: *mut c_char = ptr::null_mut();
-        let _ = ffi_try!(login::sd_session_get_class(self.identifier.as_bytes().as_ptr() as *const i8, &mut class_ptr))?;
-        let class: Class; 
+        let _ = ffi_try!(login::sd_session_get_class(
+            self.identifier.as_bytes().as_ptr() as *const i8,
+            &mut class_ptr
+        ))?;
+        let class: Class;
         unsafe {
-            class = CStr::from_ptr(class_ptr).to_string_lossy().to_string().as_str().into();
-            libc::free(class_ptr as *mut c_void); 
+            class = CStr::from_ptr(class_ptr)
+                .to_string_lossy()
+                .to_string()
+                .as_str()
+                .into();
+            libc::free(class_ptr as *mut c_void);
         };
 
         Ok(class)
@@ -159,7 +180,11 @@ pub fn get_active_session() -> Result<Session> {
     let mut uid: u32 = 0;
     let session: Session;
 
-    let _ = ffi_try!(login::sd_seat_get_active(seat.as_ptr(), &mut session_ptr, &mut uid))?; 
+    let _ = ffi_try!(login::sd_seat_get_active(
+        seat.as_ptr(),
+        &mut session_ptr,
+        &mut uid
+    ))?;
 
     unsafe {
         session = Session {
@@ -174,7 +199,9 @@ pub fn get_active_session() -> Result<Session> {
 }
 
 pub fn get_session(identifier: &str) -> Result<Option<Session>> {
-    Ok(get_sessions()?.into_iter().find(|session| session.identifier == identifier))
+    Ok(get_sessions()?
+        .into_iter()
+        .find(|session| session.identifier == identifier))
 }
 
 pub fn get_sessions() -> Result<Vec<Session>> {
@@ -183,26 +210,27 @@ pub fn get_sessions() -> Result<Vec<Session>> {
     let mut uids_ptr: *mut u32 = ptr::null_mut();
 
     let num_sessions = ffi_try!(login::sd_seat_get_sessions(
-        seat.as_ptr(), 
-        &mut sessions_ptr, 
-        &mut uids_ptr, 
-        ptr::null_mut()))?;
+        seat.as_ptr(),
+        &mut sessions_ptr,
+        &mut uids_ptr,
+        ptr::null_mut()
+    ))?;
 
     let mut sessions: Vec<Session> = Vec::with_capacity(num_sessions.try_into().unwrap());
 
     unsafe {
         for i in 0..num_sessions as isize {
-                let session_ptr = *sessions_ptr.offset(i);
-                let session = CStr::from_ptr(session_ptr);
-                
-                let uid_ptr = *uids_ptr.offset(i);
-                
-                sessions.push(Session {
-                    identifier: session.to_string_lossy().to_string(),
-                    uid: uid_ptr,
-                });
+            let session_ptr = *sessions_ptr.offset(i);
+            let session = CStr::from_ptr(session_ptr);
 
-                libc::free(session_ptr as *mut c_void);
+            let uid_ptr = *uids_ptr.offset(i);
+
+            sessions.push(Session {
+                identifier: session.to_string_lossy().to_string(),
+                uid: uid_ptr,
+            });
+
+            libc::free(session_ptr as *mut c_void);
         }
 
         libc::free(sessions_ptr as *mut c_void);

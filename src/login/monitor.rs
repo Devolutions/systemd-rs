@@ -36,15 +36,17 @@ pub struct Monitor {
 impl Drop for Monitor {
     fn drop(&mut self) {
         if let Some(handle) = self.handle.take() {
-            unsafe { 
-                libc::write(self.pipe_fds[1], [0x0A].as_ptr() as *const c_void, 1); 
+            unsafe {
+                libc::write(self.pipe_fds[1], [0x0A].as_ptr() as *const c_void, 1);
             }
             let _ = handle.join();
         }
 
         for fd in self.pipe_fds.iter() {
             if *fd > -1 {
-                unsafe { libc::close(*fd); }
+                unsafe {
+                    libc::close(*fd);
+                }
             }
         }
     }
@@ -61,8 +63,10 @@ impl Monitor {
         })
     }
 
-    pub fn init<F>(&self, category: Category, mut callback: F) -> Result<()> 
-    where F: FnMut() + Send + 'static {    
+    pub fn init<F>(&self, category: Category, mut callback: F) -> Result<()>
+    where
+        F: FnMut() + Send + 'static,
+    {
         let read_fd = self.pipe_fds[0];
 
         self.handle.set(Some(thread::spawn(move || {
@@ -71,7 +75,7 @@ impl Monitor {
                 Some(s) => {
                     category_cstr = std::ffi::CString::new(s).unwrap();
                     category_cstr.as_ptr()
-                },
+                }
                 None => ptr::null(),
             };
 
@@ -102,8 +106,8 @@ impl Monitor {
                 let timeout = get_timeout(monitor).unwrap();
                 let mut signalled = false;
                 let mut events: [epoll::Event; 1024] = [epoll::Event { events: 0, data: 0 }; 1024];
-
                 let num_fds = epoll::wait(ep_fd, timeout, &mut events).unwrap();
+
                 for i in 0..num_fds {
                     let fd = events[i].data;
 
@@ -116,10 +120,14 @@ impl Monitor {
                     }
                 }
 
-                if signalled { break; }
+                if signalled {
+                    break;
+                }
             }
 
-            unsafe { login::sd_login_monitor_unref(monitor); }
+            unsafe {
+                login::sd_login_monitor_unref(monitor);
+            }
         })));
 
         Ok(())
@@ -133,13 +141,24 @@ fn get_timeout(monitor: *mut login::sd_login_monitor) -> Result<i32> {
     match t {
         std::u64::MAX => Ok(-1),
         _ => {
-            let mut ts = libc::timespec { tv_sec: 0, tv_nsec: 0 };
+            let mut ts = libc::timespec {
+                tv_sec: 0,
+                tv_nsec: 0,
+            };
             let ts_ptr: *mut libc::timespec = &mut ts as *mut _ as *mut libc::timespec;
 
-            unsafe { libc::clock_gettime(libc::CLOCK_MONOTONIC, ts_ptr); }
+            unsafe {
+                libc::clock_gettime(libc::CLOCK_MONOTONIC, ts_ptr);
+            }
 
-            let n: u64 = (ts.tv_sec * 1000000 + ts.tv_nsec / 1000).try_into().unwrap();
-            let msec: i32 = if t > n { (((t - n + 999) / 1000)).try_into().unwrap() } else { 0 };
+            let n: u64 = (ts.tv_sec * 1000000 + ts.tv_nsec / 1000)
+                .try_into()
+                .unwrap();
+            let msec: i32 = if t > n {
+                ((t - n + 999) / 1000).try_into().unwrap()
+            } else {
+                0
+            };
 
             Ok(msec)
         }
