@@ -1,15 +1,15 @@
 [package]
-name = "systemd-rs"
-version = "0.1.1"
+name = "systemd-sys"
+version = "0.1.0"
 edition = "2018"
 license = "MIT/Apache-2.0"
 homepage = "https://github.com/Devolutions/systemd-rs"
 repository = "https://github.com/Devolutions/systemd-rs"
 authors = ["Richard Markiewicz <rmarkiewicz@devolutions.net>"]
-description = "A high level systemd wrapper"
+description = "Generated libsystemd FFI declarations"
 
 [dependencies]
-systemd-sys = { path = "systemd-sys", version = "0.1" }
 libc = "0.2"
-log = "0.4"
-epoll = "4.1.0"
+
+[build-dependencies]
+pkg-config = "0.3.17"

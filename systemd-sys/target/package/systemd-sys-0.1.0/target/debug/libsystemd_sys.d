@@ -1,0 +1,1 @@
+/opt/wayk/dev/systemd-rs/systemd-sys/target/package/systemd-sys-0.1.0/target/debug/libsystemd_sys.rlib: /opt/wayk/dev/systemd-rs/systemd-sys/target/package/systemd-sys-0.1.0/build.rs /opt/wayk/dev/systemd-rs/systemd-sys/target/package/systemd-sys-0.1.0/src/lib.rs /opt/wayk/dev/systemd-rs/systemd-sys/target/package/systemd-sys-0.1.0/src/login.rs
