@@ -9,7 +9,7 @@ use std::ptr;
 
 use log::trace;
 
-use libsystemd_sys::login;
+use systemd_sys::login;
 
 static SEAT0: &str = "seat0"; // "seat0" always exists.
 

@@ -6,7 +6,7 @@ use std::ptr;
 use std::thread;
 
 use epoll::{ControlOptions::EPOLL_CTL_ADD, Event, Events};
-use libsystemd_sys::login;
+use systemd_sys::login;
 
 pub enum Category {
     All,
