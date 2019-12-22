@@ -96,24 +96,28 @@ impl PartialEq for Session {
 }
 
 impl Session {
-    pub fn from_process_id(pid: i32) -> Result<Self> {
+    pub fn from_process_id(pid: i32) -> Result<Option<Self>> {
         let mut session_ptr: *mut c_char = ptr::null_mut();
-        let _ = ffi_try!(login::sd_pid_get_session(pid, &mut session_ptr))?;
+        let _ = ffi_try!(login::sd_pid_get_session(pid, &mut session_ptr)).ok();
 
         let mut uid: u32 = 0;
-        let _ = ffi_try!(login::sd_session_get_uid(session_ptr, &mut uid))?;
 
-        let session: Session;
-        unsafe {
-            session = Session {
-                identifier: CStr::from_ptr(session_ptr).to_string_lossy().to_string(),
-                uid,
-            };
+        if session_ptr.is_null() {
+            // Make a best guess for processes not part of a user session
+            let _ = ffi_try!(login::sd_pid_get_owner_uid(pid, &mut uid))?;
+            let _ = ffi_try!(login::sd_uid_get_display(uid, &mut session_ptr))?;
+        } else {
+            let _ = ffi_try!(login::sd_session_get_uid(session_ptr, &mut uid))?;
+        }
 
-            libc::free(session_ptr as *mut c_void);
+        let session = Session {
+            identifier: unsafe { CStr::from_ptr(session_ptr).to_string_lossy().to_string() },
+            uid,
         };
 
-        Ok(session)
+        unsafe { libc::free(session_ptr as *mut c_void) };
+
+        Ok(Some(session))
     }
 
     pub fn get_state(&self) -> Result<State> {
@@ -218,21 +222,27 @@ pub fn get_sessions() -> Result<Vec<Session>> {
 
     let mut sessions: Vec<Session> = Vec::with_capacity(num_sessions.try_into().unwrap());
 
-    unsafe {
-        for i in 0..num_sessions as isize {
-            let session_ptr = *sessions_ptr.offset(i);
-            let session = CStr::from_ptr(session_ptr);
+    for i in 0..num_sessions as isize {
+        let session_ptr = unsafe { *sessions_ptr.offset(i) };
+        let session = unsafe { CStr::from_ptr(session_ptr) };
 
-            let uid_ptr = *uids_ptr.offset(i);
-
-            sessions.push(Session {
-                identifier: session.to_string_lossy().to_string(),
-                uid: uid_ptr,
-            });
-
-            libc::free(session_ptr as *mut c_void);
+        let mut uid: u32 = 0;
+        // sd_seat_get_sessions always returns an empty UID list on some libsystemd versions
+        if uids_ptr.is_null() {
+            let _ = ffi_try!(login::sd_session_get_uid(session_ptr, &mut uid))?;
+        } else {
+            uid = unsafe { *uids_ptr.offset(i) };
         }
 
+        sessions.push(Session {
+            identifier: session.to_string_lossy().to_string(),
+            uid,
+        });
+
+        unsafe { libc::free(session_ptr as *mut c_void) };
+    }
+
+    unsafe {
         libc::free(sessions_ptr as *mut c_void);
         libc::free(uids_ptr as *mut c_void);
     }
