@@ -229,7 +229,7 @@ pub fn get_sessions() -> Result<Vec<Session>> {
         let mut uid: u32 = 0;
         // sd_seat_get_sessions always returns an empty UID list on some libsystemd versions
         if uids_ptr.is_null() {
-            if let Err(e) = ffi_try!(login::sd_session_get_uid(session_ptr, &mut uid)) {
+            if let Err(_) = ffi_try!(login::sd_session_get_uid(session_ptr, &mut uid)) {
                 continue
             }
         } else {
