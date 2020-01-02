@@ -79,6 +79,7 @@ impl From<&str> for Class {
 
 #[derive(Debug)]
 pub struct Session {
+    c_identifier: CString,
     pub identifier: String,
     pub uid: u32,
 }
@@ -96,6 +97,16 @@ impl PartialEq for Session {
 }
 
 impl Session {
+    fn new(session_ptr: *const c_char, uid: u32) -> Self {
+        let session = unsafe { CStr::from_ptr(session_ptr) };
+
+        Session {
+            c_identifier: session.to_owned(),
+            identifier: session.to_string_lossy().to_string(),
+            uid,
+        }
+    }
+
     pub fn from_process_id(pid: i32) -> Result<Option<Self>> {
         let mut session_ptr: *mut c_char = ptr::null_mut();
         let _ = ffi_try!(login::sd_pid_get_session(pid, &mut session_ptr)).ok();
@@ -110,10 +121,7 @@ impl Session {
             let _ = ffi_try!(login::sd_session_get_uid(session_ptr, &mut uid))?;
         }
 
-        let session = Session {
-            identifier: unsafe { CStr::from_ptr(session_ptr).to_string_lossy().to_string() },
-            uid,
-        };
+        let session = Session::new(session_ptr, uid);
 
         unsafe { libc::free(session_ptr as *mut c_void) };
 
@@ -123,7 +131,7 @@ impl Session {
     pub fn get_state(&self) -> Result<State> {
         let mut state_ptr: *mut c_char = ptr::null_mut();
         let _ = ffi_try!(login::sd_session_get_state(
-            self.identifier.as_bytes().as_ptr() as *const i8,
+            self.c_identifier.as_ptr() as *const c_char,
             &mut state_ptr
         ))?;
         let state: State;
@@ -142,7 +150,7 @@ impl Session {
     pub fn get_type(&self) -> Result<Type> {
         let mut type_ptr: *mut c_char = ptr::null_mut();
         let _ = ffi_try!(login::sd_session_get_type(
-            self.identifier.as_bytes().as_ptr() as *const i8,
+            self.c_identifier.as_ptr() as *const c_char,
             &mut type_ptr
         ))?;
         let r#type: Type;
@@ -161,7 +169,7 @@ impl Session {
     pub fn get_class(&self) -> Result<Class> {
         let mut class_ptr: *mut c_char = ptr::null_mut();
         let _ = ffi_try!(login::sd_session_get_class(
-            self.identifier.as_bytes().as_ptr() as *const i8,
+            self.c_identifier.as_ptr() as *const c_char,
             &mut class_ptr
         ))?;
         let class: Class;
@@ -176,13 +184,29 @@ impl Session {
 
         Ok(class)
     }
+
+    pub fn get_display(&self) -> Result<String> {
+        let mut display_ptr: *mut c_char = ptr::null_mut();
+        let _ = ffi_try!(login::sd_session_get_display(
+            self.c_identifier.as_ptr() as *const c_char,
+            &mut display_ptr
+        ))?;
+        let display: String;
+        unsafe {
+            display = CStr::from_ptr(display_ptr)
+                .to_string_lossy()
+                .to_string();
+            libc::free(display_ptr as *mut c_void);
+        };
+
+        Ok(display)
+    }
 }
 
 pub fn get_active_session() -> Result<Session> {
     let seat = CString::new(SEAT0).unwrap();
     let mut session_ptr: *mut c_char = ptr::null_mut();
     let mut uid: u32 = 0;
-    let session: Session;
 
     let _ = ffi_try!(login::sd_seat_get_active(
         seat.as_ptr(),
@@ -190,14 +214,9 @@ pub fn get_active_session() -> Result<Session> {
         &mut uid
     ))?;
 
-    unsafe {
-        session = Session {
-            identifier: CStr::from_ptr(session_ptr).to_string_lossy().to_string(),
-            uid,
-        };
+    let session = Session::new(session_ptr, uid);
 
-        libc::free(session_ptr as *mut c_void);
-    }
+    unsafe { libc::free(session_ptr as *mut c_void) };
 
     Ok(session)
 }
@@ -224,22 +243,19 @@ pub fn get_sessions() -> Result<Vec<Session>> {
 
     for i in 0..num_sessions as isize {
         let session_ptr = unsafe { *sessions_ptr.offset(i) };
-        let session = unsafe { CStr::from_ptr(session_ptr) };
 
         let mut uid: u32 = 0;
-        // sd_seat_get_sessions always returns an empty UID list on some libsystemd versions
+        // sd_seat_get_sessions always returns an empty uid list on some libsystemd versions
         if uids_ptr.is_null() {
-            if let Err(_) = ffi_try!(login::sd_session_get_uid(session_ptr, &mut uid)) {
+            if let Err(e) = ffi_try!(login::sd_session_get_uid(session_ptr, &mut uid)) {
+                trace!("failed uid lookup: {}", e);
                 continue
             }
         } else {
             uid = unsafe { *uids_ptr.offset(i) };
         }
 
-        sessions.push(Session {
-            identifier: session.to_string_lossy().to_string(),
-            uid,
-        });
+        sessions.push(Session::new(session_ptr, uid));
 
         unsafe { libc::free(session_ptr as *mut c_void) };
     }
