@@ -1,3 +1,4 @@
+use nix::errno::Errno;
 use std::cell::Cell;
 use std::convert::TryInto;
 use std::io::Result;
@@ -106,7 +107,17 @@ impl Monitor {
                 let timeout = get_timeout(monitor).unwrap();
                 let mut signalled = false;
                 let mut events: [epoll::Event; 1024] = [epoll::Event { events: 0, data: 0 }; 1024];
-                let num_fds = epoll::wait(ep_fd, timeout, &mut events).unwrap();
+
+                let num_fds = loop {
+                    let wait_result = epoll::wait(ep_fd, timeout, &mut events);
+                    match wait_result {
+                        Ok(num) => break num,
+                        Err(e) if Errno::last() != Errno::EINTR => {
+                            panic!("Failure calling epoll_wait: {}", e);
+                        }
+                        Err(_) => {}
+                    }
+                };
 
                 for i in 0..num_fds {
                     let fd = events[i].data;
